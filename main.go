@@ -1,30 +1,30 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"io"
-	"io/ioutil"
 	"crypto/rand"
 	"encoding/hex"
 	"flag"
+	"fmt"
+	"io"
+	"os"
+	"syscall"
 )
 
 // Declare a package-level debug flag.
 var debug = flag.Bool("debug", false, "enable debug output")
 
-func printFileContents(filename string) error {
-/*
-	contents, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("Failed to read file:", filename, ":", err)
-	}
-	fmt.Println("File contents:", hex.EncodeToString(contents))
-*/
+func printFileContents(filename string) {
+	/*
+		contents, err := os.ReadFile(filename)
+		if err != nil {
+			return fmt.Errorf("Failed to read file:", filename, ":", err)
+		}
+		fmt.Println("File contents:", hex.EncodeToString(contents))
+	*/
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Printf("Error opening file: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	defer file.Close()
 	// Create a hex dumper that writes to stdout
@@ -35,13 +35,14 @@ func printFileContents(filename string) error {
 	_, err = io.Copy(dumper, file)
 	if err != nil {
 		fmt.Printf("Error dumping hex: %v\n", err)
-		os.Exit(1)
+		return
 	}
-	return nil
 }
-	
+
 func shred(filename string) error {
-	if *debug { printFileContents(filename) }
+	if *debug {
+		printFileContents(filename)
+	}
 	// Perform three overwrite passes
 	for pass := 0; pass < 3; pass++ {
 		// Open file for read-write
@@ -90,16 +91,22 @@ func shred(filename string) error {
 			return fmt.Errorf("failed to sync data: %w", err)
 		}
 
+		// It may help to close the file
 		if err := f.Close(); err != nil {
 			return fmt.Errorf("failed to close file: %w", err)
 		}
-		if *debug { printFileContents(filename) }
+		if *debug {
+			printFileContents(filename)
+		}
 	}
 
 	// Remove the file from disk
 	if err := os.Remove(filename); err != nil {
 		return fmt.Errorf("failed to remove file: %w", err)
 	}
+
+	// Final sync to help ensure the deletion is committed
+	syscall.Sync()
 
 	return nil
 }
@@ -115,7 +122,12 @@ func testShred() {
 	}
 
 	// 2. Verify that the content before shredding is correct
-	contentBefore, err := ioutil.ReadFile(testFilename)
+	contentBefore, err := os.ReadFile(testFilename)
+	if err != nil {
+		fmt.Printf("Failed to read test file: %v\n", err)
+		return
+	}
+
 	if string(contentBefore) != initialContent {
 		fmt.Println("Error: file content doesn't match initial data before shredding.")
 		return
@@ -145,4 +157,3 @@ func main() {
 	// Run the test
 	testShred()
 }
-
