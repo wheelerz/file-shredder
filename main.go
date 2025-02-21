@@ -31,8 +31,13 @@ func printFileContents(filename string) {
 	dumper := hex.Dumper(os.Stdout)
 	defer dumper.Close()
 
+	// Cap the output by wrapping the file reader with io.LimitReader.
+	// For now, limit to the first 100 bytes:
+	limit := int64(100)
+	limitedReader := io.LimitReader(file, limit)
+
 	// Copy the file contents to the dumper
-	_, err = io.Copy(dumper, file)
+	_, err = io.Copy(dumper, limitedReader)
 	if err != nil {
 		fmt.Printf("Error dumping hex: %v\n", err)
 		return
@@ -147,9 +152,10 @@ func testShred() {
 		return
 	}
 
-	// 5. (Optional) Attempt to recover content after deletion
+	// 5. (Not implemented) Attempt to recover content after deletion
 
-	fmt.Println("Test passed. File was shredded and deleted successfully.")
+	fmt.Println("Tests passed. File was shredded and deleted successfully.")
+
 }
 
 func main() {
